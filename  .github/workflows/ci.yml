@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      # Loads every module and re-asserts the manifest contract. A service that cannot be
+      # counted, or that claims to be sellable without a route, fails here.
+      - name: Check module graph and manifests
+        run: npm run check
+
+      # Pure unit tests: no network, no D1, no Workers runtime.
+      - name: Test
+        run: npm test
+
+      # Bundles the Worker without deploying. The D1 id is substituted with a dummy because
+      # the real database is created by the operator; this step only proves the bundle builds.
+      - name: Bundle dry run
+        run: |
+          cp wrangler.toml wrangler.toml.bak
+          sed -i 's/REPLACE_WITH_D1_DATABASE_ID/00000000-0000-0000-0000-000000000000/' wrangler.toml
+          npx wrangler deploy --dry-run --outdir dist
+          mv wrangler.toml.bak wrangler.toml
+        env:
+          WRANGLER_SEND_METRICS: "false"
