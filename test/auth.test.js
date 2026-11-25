@@ -88,9 +88,9 @@ async function fixture({ keyRow = {}, rules = [] } = {}) {
 /* ------------------------------------------------------------------------- verification */
 
 test("a valid key authenticates and the tenant comes from the key", async () => {
-  const { key, row } = await fixture();
+  const { key, row, db } = await fixture();
 
-  const response = await call("/v1/keys", bearer(key.plaintext));
+  const response = await call("/v1/keys", bearer(key.plaintext), { DB: db });
 
   assert.equal(response.status, 200);
   const body = await response.json();
@@ -100,7 +100,7 @@ test("a valid key authenticates and the tenant comes from the key", async () => 
 });
 
 test("key listing masks every key and never leaks a secret", async () => {
-  const { key } = await fixture({
+  const { key, db } = await fixture({
     rules: [
       {
         match: /FROM api_keys WHERE tenant_id/,
@@ -119,7 +119,7 @@ test("key listing masks every key and never leaks a secret", async () => {
     ],
   });
 
-  const body = await (await call("/v1/keys", bearer(key.plaintext))).json();
+  const body = await (await call("/v1/keys", bearer(key.plaintext), { DB: db })).json();
   const serialized = JSON.stringify(body);
 
   assert.equal(body.keys.length, 1);
@@ -164,27 +164,27 @@ test("a wrong secret is rejected with the same message as an unknown prefix", as
 });
 
 test("a key presented in the wrong mode is rejected", async () => {
-  const { key } = await fixture({ keyRow: { mode: "test" } });
+  const { key, db } = await fixture({ keyRow: { mode: "test" } });
 
-  const response = await call("/v1/keys", bearer(key.plaintext));
+  const response = await call("/v1/keys", bearer(key.plaintext), { DB: db });
 
   assert.equal(response.status, 401);
   assert.equal((await response.json()).error.code, "invalid_key");
 });
 
 test("a revoked key is rejected with its own code", async () => {
-  const { key } = await fixture({ keyRow: { revoked_at: "2025-02-01T00:00:00.000Z" } });
+  const { key, db } = await fixture({ keyRow: { revoked_at: "2025-02-01T00:00:00.000Z" } });
 
-  const response = await call("/v1/keys", bearer(key.plaintext));
+  const response = await call("/v1/keys", bearer(key.plaintext), { DB: db });
 
   assert.equal(response.status, 401);
   assert.equal((await response.json()).error.code, "revoked_key");
 });
 
 test("a suspended tenant is refused after the secret verifies", async () => {
-  const { key } = await fixture({ keyRow: { tenant_status: "suspended" } });
+  const { key, db } = await fixture({ keyRow: { tenant_status: "suspended" } });
 
-  const response = await call("/v1/keys", bearer(key.plaintext));
+  const response = await call("/v1/keys", bearer(key.plaintext), { DB: db });
 
   assert.equal(response.status, 403);
   assert.equal((await response.json()).error.code, "tenant_inactive");
@@ -246,7 +246,7 @@ test("an authorization header without the Bearer scheme is ignored", async () =>
 /* ------------------------------------------------------------------------------- usage */
 
 test("usage reports this period's counters against the subscribed plan", async () => {
-  const { key } = await fixture({
+  const { key, db } = await fixture({
     rules: [
       {
         match: /FROM subscriptions s/,
@@ -268,7 +268,7 @@ test("usage reports this period's counters against the subscribed plan", async (
     ],
   });
 
-  const body = await (await call("/v1/usage", bearer(key.plaintext))).json();
+  const body = await (await call("/v1/usage", bearer(key.plaintext), { DB: db })).json();
 
   assert.equal(body.tenant_id, "ten_000000000000000000000001");
   assert.match(body.period, /^\d{4}-\d{2}$/);
@@ -286,9 +286,9 @@ test("usage reports this period's counters against the subscribed plan", async (
 });
 
 test("an unsubscribed service reports zero rather than a guessed charge", async () => {
-  const { key } = await fixture();
+  const { key, db } = await fixture();
 
-  const body = await (await call("/v1/usage", bearer(key.plaintext))).json();
+  const body = await (await call("/v1/usage", bearer(key.plaintext), { DB: db })).json();
   const mcp = body.services.find((service) => service.service_id === "mcp-gateway");
 
   assert.equal(mcp.subscribed, false);
@@ -299,7 +299,7 @@ test("an unsubscribed service reports zero rather than a guessed charge", async 
 });
 
 test("usage under the allowance is exactly the base price", async () => {
-  const { key } = await fixture({
+  const { key, db } = await fixture({
     rules: [
       {
         match: /FROM subscriptions s/,
@@ -317,7 +317,7 @@ test("usage under the allowance is exactly the base price", async () => {
     ],
   });
 
-  const body = await (await call("/v1/usage", bearer(key.plaintext))).json();
+  const body = await (await call("/v1/usage", bearer(key.plaintext), { DB: db })).json();
   const ai = body.services.find((service) => service.service_id === "ai-api");
 
   assert.equal(ai.overage_units, 0);

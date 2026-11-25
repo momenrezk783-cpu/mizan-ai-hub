@@ -154,7 +154,7 @@ test("plan money must be non-negative integers", () => {
     /non-negative integer/,
   );
   assert.throws(
-    () => defineService(baseManifest({ plans: [{ id: "x", name: "X" }] })),
+    () => defineService(baseManifest({ plans: [{ id: "xx", name: "X" }] })),
     /non-negative integer/,
   );
 });

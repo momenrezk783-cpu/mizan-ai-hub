@@ -37,12 +37,20 @@ export function microsToCents(micros) {
 /**
  * The month's charge for one subscription, in cents.
  * plan: { priceMonthlyCents, includedUnits, overageMicrosPerUnit }
+ *
+ * All three fields are required and validated. A plan that is missing its overage rate must
+ * fail loudly: defaulting a missing rate to zero would quietly bill a customer nothing for
+ * usage they consumed, which is a revenue defect that no downstream test would catch.
  */
 export function monthlyChargeCents(plan, units) {
-  const base = plan.priceMonthlyCents ?? 0;
-  const included = plan.includedUnits ?? 0;
-  const rate = plan.overageMicrosPerUnit ?? 0;
-  return base + microsToCents(overageMicros(units, included, rate));
+  const source = plan ?? {};
+  assertNonNegativeInteger(source.priceMonthlyCents, "plan.priceMonthlyCents");
+  assertNonNegativeInteger(source.includedUnits, "plan.includedUnits");
+  assertNonNegativeInteger(source.overageMicrosPerUnit, "plan.overageMicrosPerUnit");
+  return (
+    source.priceMonthlyCents +
+    microsToCents(overageMicros(units, source.includedUnits, source.overageMicrosPerUnit))
+  );
 }
 
 /** "29.00" style, for display. */

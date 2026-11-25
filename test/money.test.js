@@ -126,6 +126,10 @@ test("estimateTokens is a pre-flight guess, never a billing figure", () => {
   assert.equal(estimateTokens("abcde"), 2);
   assert.equal(estimateTokens("a".repeat(4_000)), 1_000);
   assert.ok(estimateTokens("a".repeat(4_000_001)) > 1_000_000);
+  // Missing text is empty text. This figure is a pre-flight guess and must never be the
+  // reason a request fails.
+  assert.equal(estimateTokens(null), 0);
+  assert.equal(estimateTokens(undefined), 0);
 });
 
 test("non-integer input is rejected rather than silently truncated", () => {
@@ -142,7 +146,6 @@ test("negative input is rejected", () => {
   assert.throws(() => overageUnits(10, -1), TypeError);
   assert.throws(() => microsToCents(-1), TypeError);
   assert.throws(() => formatUsd(-1), TypeError);
-  assert.throws(() => estimateTokens(null), TypeError);
   assert.throws(
     () => monthlyChargeCents({ ...starter, priceMonthlyCents: -100 }, 0),
     TypeError,
