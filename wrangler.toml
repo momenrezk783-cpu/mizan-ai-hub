@@ -1,0 +1,59 @@
+# Mizan AI Hub — a Worker independent of Cloudflare OS and Mizan Voice.
+# No shared bindings, secrets, routes or tables with either.
+#
+# Account id is committed in Cloudflare OS's CI workflow and is recorded here only as a
+# comment for the operator's reference; it is not required in this file.
+#   account: 1070f42f50aba614a00c682d2957befe
+
+name = "mizan-ai-hub"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[observability]
+enabled = true
+
+# The Hub's own storage. One D1 database for all tenants (logical multi-tenancy);
+# see docs/01-tenancy-and-data-model.md for why not database-per-tenant.
+[[d1_databases]]
+binding = "DB"
+database_name = "mizan-ai-hub"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Workers AI is already enabled on this account (Cloudflare OS binds it on four Workers),
+# so adding it here provisions nothing new. Remove this block to disable the AI API SKU.
+[ai]
+binding = "AI"
+
+[vars]
+ENVIRONMENT = "development"
+# Cheapest model offered by default. Overage prices are set per plan in the service manifests.
+DEFAULT_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+# Comma-separated origins allowed to call the public catalog. "*" during development only.
+ALLOWED_ORIGINS = "*"
+
+# --- Production -------------------------------------------------------------
+# Route and custom domain are intentionally absent until the DNS gate is approved.
+# Uncomment only after ai.mizanconsult.com is delegated to this Worker.
+#
+# [env.production]
+# name = "mizan-ai-hub"
+# workers_dev = false
+# routes = [{ pattern = "ai.mizanconsult.com/*", zone_name = "mizanconsult.com" }]
+# vars = { ENVIRONMENT = "production", DEFAULT_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct", ALLOWED_ORIGINS = "https://ai.mizanconsult.com" }
+#
+# [[env.production.d1_databases]]
+# binding = "DB"
+# database_name = "mizan-ai-hub"
+# database_id = "REPLACE_WITH_D1_DATABASE_ID"
+# migrations_dir = "migrations"
+#
+# [env.production.ai]
+# binding = "AI"
+#
+# Secrets (set with `wrangler secret put <NAME> --env production`, never in this file):
+#   API_KEY_PEPPER     required. HMAC-style pepper mixed into every key hash.
+#   ADMIN_TOKEN        required. Bearer token for /v1/admin/*.
+#   STRIPE_SECRET_KEY  optional until checkout ships (Phase 2.4, blocked on processor choice).
+#   STRIPE_WEBHOOK_SECRET  optional, same gate.

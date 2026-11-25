@@ -1,0 +1,23 @@
+{
+  "name": "mizan-ai-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mizan AI Hub — commercial platform for managed AI services on Cloudflare.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create mizan-ai-hub",
+    "db:migrate:local": "wrangler d1 migrations apply mizan-ai-hub --local",
+    "db:migrate": "wrangler d1 migrations apply mizan-ai-hub --remote",
+    "test": "node --test test/",
+    "check": "node scripts/check.mjs",
+    "verify": "npm run check && npm test"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
