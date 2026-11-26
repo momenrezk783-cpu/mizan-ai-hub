@@ -24,6 +24,28 @@ export function empty(status, init = {}) {
   return new Response(null, { ...init, status });
 }
 
+const CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; " +
+  "connect-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'none'; " +
+  "frame-ancestors 'none'";
+
+/**
+ * Serves a rendered page. Pages carry their own inline style and script, so the CSP allows
+ * inline for those two only and nothing else: no third-party fetch, no framing, no base rewrite.
+ */
+export function html(body, { status = 200, cache = "no-store" } = {}) {
+  return new Response(body, {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": cache,
+      "content-security-policy": CSP,
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+    },
+  });
+}
+
 /** Reads a JSON body, refusing anything that is not an object. */
 export async function readJson(request) {
   const contentType = request.headers.get("content-type") || "";

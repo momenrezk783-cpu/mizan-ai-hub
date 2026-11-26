@@ -254,3 +254,36 @@ export async function appendAudit(db, { tenantId, actor, action, detail }) {
     .bind(tenantId ?? null, actor, action, detail ? JSON.stringify(detail) : null)
     .run();
 }
+
+/* -------------------------------------------------------------------------- leads */
+
+/**
+ * Records a public enquiry. Leads are not tenant-scoped: they exist before an account does.
+ * Re-submitting the same email is allowed — a business may ask twice, and losing the second
+ * enquiry would lose the deal.
+ */
+export async function insertLead(db, { id, name, email, company, website, interest, message }) {
+  await db
+    .prepare(
+      `INSERT INTO leads (id, name, email, company, website, interest, message)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, name, email, company, website, interest, message)
+    .run();
+}
+
+export async function countLeads(db) {
+  const row = await db.prepare(`SELECT COUNT(*) AS total FROM leads`).first();
+  return row?.total ?? 0;
+}
+
+export async function recentLeads(db, limit = 25) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, name, email, company, website, interest, message, status, created_at
+       FROM leads ORDER BY created_at DESC LIMIT ?`,
+    )
+    .bind(limit)
+    .all();
+  return results ?? [];
+}

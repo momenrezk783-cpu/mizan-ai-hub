@@ -10,6 +10,7 @@ import mcpGateway from "./services/mcp-gateway.js";
 import {
   fail,
   json,
+  html,
   currentPeriod,
   corsHeaders,
   errorResponse,
@@ -19,6 +20,7 @@ import {
   optionalString,
   slugify,
 } from "./lib/http.js";
+import { landingPage, docsPage, consolePage, visibilityPage } from "./web/pages.js";
 import { authenticate, requireAdmin } from "./lib/auth.js";
 import { issueKey, maskKey } from "./lib/keys.js";
 import { monthlyChargeCents, formatUsd, overageUnits } from "./lib/money.js";
@@ -40,8 +42,22 @@ function handleHealth({ env }) {
   });
 }
 
-function handleIndex({ url }) {
+/** A browser sends Accept: text/html; an API client sends *\/* or application/json. */
+function wantsHtml(request) {
+  return String(request.headers.get("accept") || "").includes("text/html");
+}
+
+function handleIndex({ request, url }) {
   const base = url.origin;
+
+  if (wantsHtml(request)) {
+    const service = registry.get(aiApi.id);
+    const blocked = registry.list().filter((entry) => !entry.sellable);
+    return html(landingPage({ service, blocked, baseUrl: base }), {
+      cache: "public, max-age=300",
+    });
+  }
+
   return json({
     name: "Mizan AI Hub",
     version: VERSION,
@@ -54,8 +70,68 @@ function handleIndex({ url }) {
       keys: `${base}/v1/keys`,
       usage: `${base}/v1/usage`,
     },
+    pages: {
+      website: `${base}/`,
+      visibility: `${base}/visibility`,
+      docs: `${base}/docs`,
+      console: `${base}/console`,
+    },
     authentication: "Authorization: Bearer <api-key>",
   });
+}
+
+function handleDocs({ url }) {
+  const service = registry.get(aiApi.id);
+  return html(docsPage({ service, baseUrl: url.origin }), { cache: "public, max-age=300" });
+}
+
+function handleConsole({ url }) {
+  // Never cached: the console is a key-entry surface and must not sit in a shared cache.
+  return html(consolePage({ baseUrl: url.origin }), { cache: "no-store" });
+}
+
+function handleVisibility({ url }) {
+  return html(visibilityPage({ baseUrl: url.origin }), { cache: "public, max-age=300" });
+}
+
+/**
+ * Public enquiry capture. This is the only write on the site that creates no account and no
+ * key: the visibility service is delivered by a person, so the outcome is a lead, not a token.
+ */
+async function handleCreateLead({ request, env }) {
+  const body = await readJson(request);
+  const email = requireEmail(body);
+  const company = requireString(body, "company", { maxLength: 120 });
+  const name = optionalString(body, "name", "", 120);
+  const website = optionalString(body, "website", "", 200);
+  const interest = optionalString(body, "interest", "visibility-audit", 60);
+  const message = optionalString(body, "message", "", 2000);
+
+  const id = `lead_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+  await store.insertLead(env.DB, { id, name, email, company, website, interest, message });
+  await store.appendAudit(env.DB, {
+    tenantId: null,
+    actor: "public",
+    action: "lead.created",
+    detail: { lead_id: id, interest },
+  });
+
+  return json(
+    {
+      id,
+      received: true,
+      message: "Enquiry received. We will reply to the address you gave.",
+    },
+    { status: 202 },
+  );
+}
+
+async function handleAdminLeads({ env }) {
+  const [total, leads] = await Promise.all([
+    store.countLeads(env.DB),
+    store.recentLeads(env.DB, 50),
+  ]);
+  return json({ total, leads });
 }
 
 function handleServices() {
@@ -363,15 +439,20 @@ async function handleAdminOverview({ env }) {
 const ROUTES = [
   { method: "GET", pattern: [], handler: handleIndex },
   { method: "GET", pattern: ["health"], handler: handleHealth },
+  { method: "GET", pattern: ["docs"], handler: handleDocs },
+  { method: "GET", pattern: ["console"], handler: handleConsole },
+  { method: "GET", pattern: ["visibility"], handler: handleVisibility },
   { method: "GET", pattern: ["v1", "services"], handler: handleServices },
   { method: "GET", pattern: ["v1", "services", ":id"], handler: handleService },
   { method: "GET", pattern: ["v1", "pricing"], handler: handlePricing },
   { method: "POST", pattern: ["v1", "tenants"], handler: handleCreateTenant },
+  { method: "POST", pattern: ["v1", "leads"], handler: handleCreateLead },
   { method: "GET", pattern: ["v1", "keys"], handler: handleListKeys, auth: true },
   { method: "POST", pattern: ["v1", "keys"], handler: handleCreateKey, auth: true },
   { method: "DELETE", pattern: ["v1", "keys", ":id"], handler: handleRevokeKey, auth: true },
   { method: "GET", pattern: ["v1", "usage"], handler: handleUsage, auth: true },
   { method: "GET", pattern: ["v1", "admin", "overview"], handler: handleAdminOverview, admin: true },
+  { method: "GET", pattern: ["v1", "admin", "leads"], handler: handleAdminLeads, admin: true },
 ];
 
 function matchSegments(pattern, segments) {
