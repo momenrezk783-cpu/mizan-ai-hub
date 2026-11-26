@@ -18,7 +18,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "mizan-ai-hub"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "0dbfe539-1d1c-409a-b82c-753fd83b3cb5"
 migrations_dir = "migrations"
 
 # Workers AI is already enabled on this account (Cloudflare OS binds it on four Workers),
@@ -27,7 +27,7 @@ migrations_dir = "migrations"
 binding = "AI"
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
 # Cheapest model offered by default. Overage prices are set per plan in the service manifests.
 DEFAULT_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 # Comma-separated origins allowed to call the public catalog. "*" during development only.
@@ -46,7 +46,7 @@ ALLOWED_ORIGINS = "*"
 # [[env.production.d1_databases]]
 # binding = "DB"
 # database_name = "mizan-ai-hub"
-# database_id = "REPLACE_WITH_D1_DATABASE_ID"
+# database_id = "0dbfe539-1d1c-409a-b82c-753fd83b3cb5"
 # migrations_dir = "migrations"
 #
 # [env.production.ai]
