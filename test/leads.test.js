@@ -198,10 +198,15 @@ test("a malformed body is a 400, not a crash", async () => {
 test("leads cannot be read without the admin token", async () => {
   assert.equal((await call("/v1/admin/leads")).status, 401);
   assert.equal((await call("/v1/admin/leads", bearer("guess"))).status, 401);
-  assert.equal(
-    (await call("/v1/admin/leads", bearer("anything"), { ADMIN_TOKEN: undefined })).status,
-    401,
-  );
+});
+
+test("leads fail closed, not open, when no admin token is configured", async () => {
+  // A deployment with no ADMIN_TOKEN must refuse every caller. It reports 500 "misconfigured"
+  // rather than 401, matching the pepper check, so an operator can tell a broken deployment
+  // apart from a wrong token.
+  const response = await call("/v1/admin/leads", bearer("anything"), { ADMIN_TOKEN: undefined });
+  assert.equal(response.status, 500);
+  assert.equal((await response.json()).error.code, "misconfigured");
 });
 
 test("an operator can read the enquiries with the admin token", async () => {
