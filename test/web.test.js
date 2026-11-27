@@ -199,10 +199,30 @@ test("compactUnits renders allowances the way a buyer reads them", () => {
 });
 
 test("perMillion converts micro-USD per token to dollars per million", () => {
-  assert.equal(perMillion(2000000), "$2");
-  assert.equal(perMillion(1000000), "$1");
-  assert.equal(perMillion(1500000), "$1.50");
+  // A rate is stored in micro-USD per unit. 2 micro-USD per token is 2,000,000 micro-USD
+  // per million tokens, which is $2.00 -- so the number needs no scaling at all.
+  assert.equal(perMillion(2), "$2");
+  assert.equal(perMillion(1), "$1");
+  assert.equal(perMillion(1.5), "$1.50");
   assert.equal(perMillion(0), "—");
+});
+
+test("the public pricing table never advertises free overage", async () => {
+  // Regression: perMillion divided by a million, so every paid plan rendered "$0.00/1M"
+  // and the front page told buyers that usage beyond the allowance cost nothing.
+  const html = await (await browser("/")).text();
+
+  assert.ok(!html.includes("$0.00/1M"), "a paid plan must never render its overage as $0.00");
+  assert.match(html, /\$2\/1M/); // starter and pro
+  assert.match(html, /\$1\/1M/); // business
+});
+
+test("the worked example matches what the invoice would charge", async () => {
+  const html = await (await browser("/")).text();
+
+  // 2,000,000 tokens on starter: $29.00 plan plus 1M overage at $2/1M = $31.00, which is
+  // the same figure the pricing API reports as charge_display.
+  assert.match(html, /\$31\.00/);
 });
 
 test("every page renders without a database, because none of them read one", async () => {
