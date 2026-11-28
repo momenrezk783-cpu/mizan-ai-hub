@@ -5,6 +5,8 @@
 //
 // Everything interpolated here is either a number, a constant, or escaped by `esc`.
 
+import { monthlyChargeCents } from "../lib/money.js";
+
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -19,11 +21,14 @@ export function compactUnits(units) {
   return String(units);
 }
 
-/** Micro-USD per unit is exactly dollars per million units. 2 -> "$2". */
+/**
+ * A rate quoted in micro-USD per unit is numerically the same as dollars per million units:
+ * 2 micro-USD/token x 1,000,000 tokens = $2.00. No scaling is needed. Dividing here would
+ * print "$0.00/1M" and tell a buyer that overage is free.
+ */
 export function perMillion(micros) {
   if (micros === 0) return "—";
-  const dollars = micros / 1_000_000;
-  return `$${dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2)}`;
+  return `$${micros % 1 === 0 ? micros.toFixed(0) : micros.toFixed(2)}`;
 }
 
 function money(cents) {
@@ -207,6 +212,17 @@ document.getElementById("copy").addEventListener("click", async () => {
 });
 `;
 
+  // The worked example has to agree with the invoice to the cent, so it is computed with the
+  // same money module the billing path uses rather than re-derived in the template.
+  const starter = plans.find((plan) => plan.id === "starter");
+  const example = starter
+    ? `Example: 2,000,000 tokens on ${esc(starter.name)} is ${money(
+        monthlyChargeCents(starter, 2_000_000),
+      )} — the ${money(starter.priceMonthlyCents)} plan plus 1M overage tokens at ${perMillion(
+        starter.overageMicrosPerUnit,
+      )}/1M, billed once, on the invoice.`
+    : "";
+
   const body = `
 <div class="wrap hero">
   <h1>Managed AI, billed by the token.</h1>
@@ -234,7 +250,7 @@ document.getElementById("copy").addEventListener("click", async () => {
     <thead><tr><th>Plan</th><th class="num">Monthly</th><th class="num">Included tokens</th><th class="num">Overage</th></tr></thead>
     <tbody>${pricingRows(plans)}</tbody>
   </table>
-  <p class="note" style="margin-top:16px">Example: 2,000,000 tokens on Starter is ${money(plans.find((p) => p.id === "starter")?.priceMonthlyCents ?? 0)} plus ${compactUnits(1000000)} overage — billed once, on the invoice.</p>
+  ${example ? `<p class="note" style="margin-top:16px">${example}</p>` : ""}
 </div></section>
 
 <section id="start"><div class="wrap">
